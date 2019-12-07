@@ -2,7 +2,7 @@ import tensorflow as tf
 
 
 # THIS IS NOT IMPLEMENTED YET
-# Check testing.py
+# Check tests/testing.py
 
 class CCN_Layer(tf.keras.layers.Layer):
     def __init__(self):
