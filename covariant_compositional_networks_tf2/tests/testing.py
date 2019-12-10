@@ -37,7 +37,7 @@ def getEinsumExpression(k, feature_vector_shape):
     # if k==1:
     #      return 'ai,if->af'
     # if k==2:
-    #      return 'ai,bj,ijf->abf'
+    #     #      return 'ai,bj,ijf->abf'
     str_to_join = []
     for i in range(k):
         str_to_join.append(ascii_chi[i])
@@ -100,9 +100,9 @@ with tf.GradientTape() as gt:
 
 
 
-    a_tensor = tf.convert_to_tensor(permutationFunction(parts[0], new_parts[0]) , dtype=tf.float32)
+    #a_tensor = tf.convert_to_tensor(permutationFunction(parts[0], new_parts[0]) , dtype=tf.float32)
 
-    one_prom = tf.einsum(einsum_expr, *([a_tensor]*k + [tensors[0]] ) )
+    #one_prom = tf.einsum(einsum_expr, *([a_tensor]*k + [tensors[0]] ) )
     # for every neuron i;
     # create promotion chi matrix for every neuron/node in i's receptive field
     chis = [{tensor_child_index.numpy(): tf.convert_to_tensor(permutationFunction(parts[tensor_child_index], new_parts[i]), dtype=tf.float32)
@@ -128,12 +128,12 @@ gradient = gt.gradient(promotions, tensors)
 
 
 print(gradient)
-from covariant_compositional_networks_tf2.CCN_Layer import CCN_Layer
-tf.executing_eagerly()
-
-l1 = CCN_Layer()
-l2 = CCN_Layer()([l1, 'l'])
-model = tf.keras.Model(inputs=l1, outputs=l2, dynamic=True)
+# from covariant_compositional_networks_tf2.CCN_Layer import CCN_Layer
+# tf.executing_eagerly()
+#
+# l1 = CCN_Layer()
+# l2 = CCN_Layer()([l1, 'l'])
+# model = tf.keras.Model(inputs=l1, outputs=l2, dynamic=True)
 
 
 
