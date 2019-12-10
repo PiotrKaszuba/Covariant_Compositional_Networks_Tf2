@@ -63,53 +63,77 @@ permutationFunction = alternativePermutationMatrix_AToB  # Choose which permutat
 einsum_expr = getEinsumExpression(k, feature_vector_shape)  # promotion expression
 
 # This is an exemplary layer input
-inp = [[tf.reshape(tf.range(reduce(mul, feature_vector_shape)) + 1, [1] * k + feature_vector_shape),
-        tf.reshape(tf.range(reduce(mul, feature_vector_shape)) + 5, [1] * k + feature_vector_shape)],
+inp = [[tf.Variable(tf.reshape(tf.range(reduce(mul, feature_vector_shape),dtype=tf.float32) + 1, [1] * k + feature_vector_shape)),
+        tf.Variable(tf.reshape(tf.range(reduce(mul, feature_vector_shape),dtype=tf.float32) + 5, [1] * k + feature_vector_shape))],
        # 2 feature vectors
        # for k =2 its [ [[[1,2,3]]], [[[5,6,7]]] ]
-       np.array([[1, 1], [0, 1]]),  # adjacency matrix of DIRECTED graph - node[0] will gather inputs from [0] and [1]
+       tf.convert_to_tensor(np.array([[1, 1], [0, 1]])),  # adjacency matrix of DIRECTED graph - node[0] will gather inputs from [0] and [1]
        # and node[1] only from [1]
-       [OrderedSet([0]), OrderedSet([1])]]  # parts - P(0) = {0}, and P(1) = {1} - cummulative receptive field
+       [tf.constant([0]), tf.constant([1])]]  # parts - P(0) = {0}, and P(1) = {1} - cummulative receptive field
+with tf.GradientTape() as gt:
+    gt.watch(inp[0])
+    # take the input and simulate layer behaviour:
 
-# take the input and simulate layer behaviour:
+
+    # Organizing inputs
+    # only the first (tensors) should pass gradients to update W's
+    # only the first and the third (tensors, parts) will change when propagating throughout network
+    # parts will accumulate with receptive fields
+    # tensors are activations from previous layer
+    # adjM is constant 2D square matrix - used to retrieve number of neurons by its size
+    # and to gather neurons to define new layer parts based on children parts
+    tensors, adjM, parts = inp
+
+    # extract number of neurons from adjM number of rows (adjM is 2D square matrix)
+    # this is here for option to decrease number of neurons in the following layers by shrinking adjM
+    # e.g. neurons over leaf nodes in graph
+    num_neurons = len(adjM)
+
+    # contains information which neurons to gather signal from (for every neuron list)
+    receptive_fields = [tf.where(adjM[i] == 1)[:, 0] for i in range(num_neurons)]
+
+    # new, cumulative receptive fields (parts) based on adjM (for every neuron in current layer)
+    # for every neuron i;
+    # parts of every neuron in the receptive field of 'i' are reduced with union to get cumulative receptive fields
+    new_parts = [reduce(OrderedSet.union, [parts[tensor_child_index] for tensor_child_index in receptive_fields[i]])
+                 for i in range(num_neurons)]
 
 
-# Organizing inputs
-# only the first (tensors) should pass gradients to update W's
-# only the first and the third (tensors, parts) will change when propagating throughout network
-# parts will accumulate with receptive fields
-# tensors are activations from previous layer
-# adjM is constant 2D square matrix - used to retrieve number of neurons by its size
-# and to gather neurons to define new layer parts based on children parts
-tensors, adjM, parts = inp
 
-# extract number of neurons from adjM number of rows (adjM is 2D square matrix)
-# this is here for option to decrease number of neurons in the following layers by shrinking adjM
-# e.g. neurons over leaf nodes in graph
-num_neurons = len(adjM)
+    a_tensor = tf.convert_to_tensor(permutationFunction(parts[0], new_parts[0]) , dtype=tf.float32)
 
-# contains information which neurons to gather signal from (for every neuron list)
-receptive_fields = [tf.where(adjM[i] == 1)[:, 0] for i in range(num_neurons)]
+    one_prom = tf.einsum(einsum_expr, *([a_tensor]*k + [tensors[0]] ) )
+    # for every neuron i;
+    # create promotion chi matrix for every neuron/node in i's receptive field
+    chis = [{tensor_child_index.numpy(): tf.convert_to_tensor(permutationFunction(parts[tensor_child_index], new_parts[i]), dtype=tf.float32)
+             for tensor_child_index in receptive_fields[i]}
+            for i in range(num_neurons)]
 
-# new, cumulative receptive fields (parts) based on adjM (for every neuron in current layer)
-# for every neuron i;
-# parts of every neuron in the receptive field of 'i' are reduced with union to get cumulative receptive fields
-new_parts = [reduce(OrderedSet.union, [parts[tensor_child_index] for tensor_child_index in receptive_fields[i]])
-             for i in range(num_neurons)]
+    # for every neuron i;
+    # promote every activation of nodes in i's receptive field
+    # IMPORTANT:
+    # (probably) This is where tf functions should start to be used because new structures are formed based on previous ones
+    # and these new structures will ultimately 'transform' and mix with W to create activations
+    promotions = [[tf.einsum(einsum_expr, *([chis[i][tensor_child_index.numpy()]] * k + [tensors[tensor_child_index]]))
+                   for tensor_child_index in receptive_fields[i]]
+                  for i in range(num_neurons)]
 
-# for every neuron i;
-# create promotion chi matrix for every neuron/node in i's receptive field
-chis = [{tensor_child_index.numpy(): tf.convert_to_tensor(permutationFunction(parts[tensor_child_index], new_parts[i]))
-         for tensor_child_index in receptive_fields[i]}
-        for i in range(num_neurons)]
+    #print(promotions)
 
-# for every neuron i;
-# promote every activation of nodes in i's receptive field
-# IMPORTANT:
-# (probably) This is where tf functions should start to be used because new structures are formed based on previous ones
-# and these new structures will ultimately 'transform' and mix with W to create activations
-promotions = [[tf.einsum(einsum_expr, *([chis[i][tensor_child_index.numpy()]] * k + [tensors[tensor_child_index]]))
-               for tensor_child_index in receptive_fields[i]]
-              for i in range(num_neurons)]
 
-print(promotions)
+
+
+gradient = gt.gradient(promotions, tensors)
+
+
+
+print(gradient)
+from covariant_compositional_networks_tf2.CCN_Layer import CCN_Layer
+tf.executing_eagerly()
+
+l1 = CCN_Layer()
+l2 = CCN_Layer()([l1, 'l'])
+model = tf.keras.Model(inputs=l1, outputs=l2, dynamic=True)
+
+
+
