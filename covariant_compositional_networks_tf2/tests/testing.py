@@ -58,18 +58,20 @@ def getEinsumExpression(k, feature_vector_shape):
 
 # these are constructor / build params:
 k = 2
-feature_vector_shape = [3]
+feature_vector_shape = [4,2]
 permutationFunction = alternativePermutationMatrix_AToB  # Choose which permutation function to use (same results)
 einsum_expr = getEinsumExpression(k, feature_vector_shape)  # promotion expression
 
 # This is an exemplary layer input
 inp = [[tf.Variable(tf.reshape(tf.range(reduce(mul, feature_vector_shape),dtype=tf.float32) + 1, [1] * k + feature_vector_shape)),
-        tf.Variable(tf.reshape(tf.range(reduce(mul, feature_vector_shape),dtype=tf.float32) + 5, [1] * k + feature_vector_shape))],
+        tf.Variable(tf.reshape(tf.range(reduce(mul, feature_vector_shape),dtype=tf.float32) + 5, [1] * k + feature_vector_shape)),
+        tf.Variable(tf.reshape(tf.range(reduce(mul, feature_vector_shape), dtype=tf.float32) + 9,
+                               [1] * k + feature_vector_shape))],
        # 2 feature vectors
        # for k =2 its [ [[[1,2,3]]], [[[5,6,7]]] ]
-       tf.convert_to_tensor(np.array([[1, 1], [0, 1]])),  # adjacency matrix of DIRECTED graph - node[0] will gather inputs from [0] and [1]
+       np.array([[1, 1, 0], [1, 1, 1], [0,1,1]]),  # adjacency matrix of DIRECTED graph - node[0] will gather inputs from [0] and [1]
        # and node[1] only from [1]
-       [tf.constant([0]), tf.constant([1])]]  # parts - P(0) = {0}, and P(1) = {1} - cummulative receptive field
+       [OrderedSet([0]), OrderedSet([1]),  OrderedSet([2])]]  # parts - P(0) = {0}, and P(1) = {1} - cummulative receptive field
 with tf.GradientTape() as gt:
     gt.watch(inp[0])
     # take the input and simulate layer behaviour:
@@ -118,7 +120,7 @@ with tf.GradientTape() as gt:
                    for tensor_child_index in receptive_fields[i]]
                   for i in range(num_neurons)]
 
-    #print(promotions)
+    print(promotions)
 
 
 
