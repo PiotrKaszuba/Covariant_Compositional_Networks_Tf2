@@ -172,7 +172,7 @@ activation_swap_channels_list = [activations_channels_position_to_swap] + [i for
 # W = tf.Variable(tf.random.uniform([channels_out, channels_in] + [len(contractions_expressions)] + feature_vector_shape, minval=-1))
 # bias = tf.Variable(tf.random.uniform([channels_out] + feature_vector_shape, minval=-1))
 W = tf.Variable(tf.ones([channels_out, channels_in] + [len(contractions_expressions)] + feature_vector_shape))
-bias = tf.Variable(tf.ones([channels_out] + feature_vector_shape))
+bias = tf.Variable(tf.zeros([channels_out] + feature_vector_shape))
 
 # This is an exemplary layer input
 helperVar = reduce(mul, [channels_in]+feature_vector_shape)
@@ -237,7 +237,7 @@ with tf.GradientTape() as gt:
     stacked = [tf.stack(promotions[i], axis=1) for i in range(num_neurons)]
 
     qs = [tf.stack([tf.einsum(expression, stacked[i]) for expression in contractions_expressions], axis=1) for i in range(num_neurons)]
-    f = 0
+
     activations = [
         tf.transpose(
              nonlinearity(
@@ -249,11 +249,12 @@ with tf.GradientTape() as gt:
 
     print(qs[0])
     print(activations)
+    summed=tf.reduce_sum( [tf.reduce_sum(activations[i]) for i in range(num_neurons)])
+    loss = tf.keras.losses.MSE(summed, tf.constant([42.5], dtype=tf.float32))
+    print(loss)
 
 
-
-
-gradient = gt.gradient(activations, bias)
+gradient = gt.gradient(loss, W)
 
 
 
