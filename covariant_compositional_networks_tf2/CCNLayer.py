@@ -20,7 +20,8 @@ class CCN_Layer:
 
     ascii_contractions = ascii_f
 
-    def __init__(self, k = 2, feature_vector_shape = [1], channels_in = 1, channels_out = 1, nonlinearity = tf.nn.relu, weights_init = 'uniform'):
+    # q_dim_security = 'adjM' or 'contractions'
+    def __init__(self, k = 2, feature_vector_shape = [1], channels_in = 1, channels_out = 1, nonlinearity = tf.nn.relu, weights_init = 'uniform', q_dim_security='adjM'):
         self.k = k
         self.feature_vector_shape = feature_vector_shape
         self.channels_out = channels_out
@@ -29,7 +30,7 @@ class CCN_Layer:
 
         self.permutationFunction = self.alternativePermutationMatrix_AToB  # Choose which permutation function to use (same results)
         self.einsum_expr = self.getEinsumExpression(k, feature_vector_shape, channels_in)  # promotion expression
-        self.contractions_expressions = self.getContractions(k, 1, feature_vector_shape, channels_in)
+
         self.einsum_activation = self.getActivationEinsum(k, feature_vector_shape, channels_in)
         activations_shape_len = 1 + k + len(feature_vector_shape)
         activations_channels_position_to_swap = k
@@ -37,6 +38,9 @@ class CCN_Layer:
                                                                                    range(activations_shape_len) if
                                                                                    i != activations_channels_position_to_swap]
 
+
+        self.q_dim_security = q_dim_security
+        self.contractions_expressions = self.getContractions(k, 1, feature_vector_shape, channels_in)
         self.initialize_weights(weights_init)
     def initialize_weights(self, type_init):
         if type_init == 'uniform':
@@ -49,7 +53,7 @@ class CCN_Layer:
 
 
     def call(self, X, adjM, parts):
-        print("ok")
+        #print("ok")
         # extract number of neurons from adjM number of rows (adjM is 2D square matrix)
         # this is here for option to decrease number of neurons in the following layers by shrinking adjM
         # e.g. neurons over leaf nodes in graph
@@ -57,6 +61,13 @@ class CCN_Layer:
 
         # contains information which neurons to gather signal from (for every neuron list)
         receptive_fields = [tf.where(adjM[i] == 1)[:, 0] for i in range(num_neurons)]
+
+        if self.q_dim_security == 'adjM':
+            newAdjM = np.array(adjM)
+            indices = list(zip(*np.where(adjM == 1)))
+            for row,col in indices:
+                newAdjM[row] += adjM[col]
+            adjM=np.clip(newAdjM, a_min=0, a_max=1)
 
         # new, cumulative receptive fields (parts) based on adjM (for every neuron in current layer)
         # for every neuron i;
@@ -173,4 +184,7 @@ class CCN_Layer:
         combinations_of_out_symbols = combinations(contract_symbols, k)
         expressions = [''.join(str_to_join) + ''.join(combination) + ''.join(str_feature_vector) for combination in
                        combinations_of_out_symbols]
+        #expressions = [''.join(str_to_join) + ''.join(combination) + ''.join(str_feature_vector)]
+        if self.q_dim_security == 'contractions':
+            expressions = [expressions[2]]
         return expressions
