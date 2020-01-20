@@ -43,6 +43,8 @@ class CCN_Layer:
         self.contractions_expressions = self.getContractions(k, 1, feature_vector_shape, channels_in)
         self.initialize_weights(weights_init)
     def initialize_weights(self, type_init):
+        self.momentumW = tf.zeros([self.channels_out, self.channels_in] + [len(self.contractions_expressions)] + self.feature_vector_shape)
+        self.momentumB = tf.zeros([self.channels_out] + self.feature_vector_shape)
         if type_init == 'uniform':
             self.W = tf.Variable(
                 tf.random.uniform([self.channels_out, self.channels_in] + [len(self.contractions_expressions)] + self.feature_vector_shape,
@@ -67,13 +69,25 @@ class CCN_Layer:
             indices = list(zip(*np.where(adjM == 1)))
             for row,col in indices:
                 newAdjM[row] += adjM[col]
+            oldAdjM = adjM
             adjM=np.clip(newAdjM, a_min=0, a_max=1)
 
-        # new, cumulative receptive fields (parts) based on adjM (for every neuron in current layer)
-        # for every neuron i;
-        # parts of every neuron in the receptive field of 'i' are reduced with union to get cumulative receptive fields
-        new_parts = [reduce(OrderedSet.union, [parts[tensor_child_index] for tensor_child_index in receptive_fields[i]])
-                     for i in range(num_neurons)]
+            new_parts_delta = [
+                OrderedSet(np.where(oldAdjM[i] == 1)[0].tolist())
+                for i in range(num_neurons)]
+            new_parts = [OrderedSet.union(parts[i], new_parts_delta[i]) for i in range(num_neurons)]
+        else:
+
+
+
+
+
+            # new, cumulative receptive fields (parts) based on adjM (for every neuron in current layer)
+            # for every neuron i;
+            # parts of every neuron in the receptive field of 'i' are reduced with union to get cumulative receptive fields
+            new_parts = [
+                reduce(OrderedSet.union, [parts[tensor_child_index] for tensor_child_index in receptive_fields[i]])
+                for i in range(num_neurons)]
 
         # a_tensor = tf.convert_to_tensor(permutationFunction(parts[0], new_parts[0]) , dtype=tf.float32)
 
@@ -107,6 +121,7 @@ class CCN_Layer:
                 ),
                 self.activation_swap_channels_list)
             for neuron_ind in range(num_neurons)]
+
 
         return activations, adjM, new_parts
 

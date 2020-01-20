@@ -30,12 +30,15 @@ y = tf.constant([2.0])
 #print(y)
 print(result)
 
-for i in range(10):
+# for i in range(10):
+#
+#     model.fit(inp[0], y, inp[1], inp[2])
+#
+#     result = model.predict(inp[0], inp[1], inp[2])
+#     print(result)
 
-    model.fit(inp[0], y, inp[1], inp[2])
+model.fit([inp[0]], [y], [inp[1]], [inp[2]], 1000 )
 
-    result = model.predict(inp[0], inp[1], inp[2])
-    print(result)
 
 #list(reversed(inp[0]))
 inpSwap = [inp[0][1], inp[0][2], inp[0][0]]
