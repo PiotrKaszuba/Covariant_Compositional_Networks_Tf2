@@ -8,9 +8,9 @@ from covariant_compositional_networks_tf2.CCN_Model import CCN_Model
 channels_in = 5
 feature_vector_shape = [1]
 k = 2
-model = CCN_Model(lr=1e-5, lr_decay_rate=0.8, lr_min=2e-7, loss=tf.losses.logcosh, nonlinearity=tf.nn.leaky_relu,
-                  feature_vector_shape=feature_vector_shape, num_layers=4, k=k,
-                  channels_in=[channels_in, 4, 3,3, 1])
+model = CCN_Model(optimizer= tf.keras.optimizers.Adam(lr = 0.005), loss=tf.losses.binary_crossentropy, nonlinearity=tf.nn.relu,
+                  feature_vector_shape=feature_vector_shape, num_layers=1, k=k, batch_update_size=60, l1_reg=0.004, save_every=2,
+                  channels_in=[channels_in, 40])
 
 
 def randomNPGraph(n, p, diagonal=True, undirected=True):
@@ -48,7 +48,7 @@ def checkIfGraphConnected(adjM):
 
 
 def generateGraphColoring(size, n_range, m_range, p_range):
-    m_max = m_range[1]
+    m_max = m_range[1]-1
     graphs = []
     while True:
         n = np.random.randint(n_range[0], n_range[1])
@@ -61,7 +61,7 @@ def generateGraphColoring(size, n_range, m_range, p_range):
             continue
         coloring = randomGraphColoring(n, m, max_color=m_max)
         coloringError = checkGraphColoringError(NPGraph, coloring)
-        coloringError = 1000.0 if coloringError ==0 else -1000
+        coloringError = 0.0 if coloringError ==0 else 1
         parts = [OrderedSet([i]) for i in range(len(NPGraph))]
         graph = [NPGraph, coloring, coloringError, parts]
         graphs.append(graph)
@@ -81,15 +81,24 @@ def generateGraphColoring(size, n_range, m_range, p_range):
 # print(coloring)
 # print(connected)
 # print(coloringError)
+data_size = 600
+graphs = list(zip(*generateGraphColoring(data_size, (3, 7), (channels_in, channels_in+1), (0.2, 0.5))))
+graphsValid = list(zip(*generateGraphColoring(250, (3, 7), (channels_in, channels_in+1), (0.2, 0.5))))
 
-graphs = list(zip(*generateGraphColoring(200, (3, 6), (channels_in-1, channels_in), (0.2, 0.5))))
-print(graphs)
+Xval, Yval = model.createTensors(graphsValid[1], graphsValid[2])
+model.add_valid(Xval, Yval, graphsValid[0], graphsValid[3])
 
+#print(graphs)
+uq=np.unique(graphs[2], return_counts=True)
 print(np.unique(graphs[2], return_counts=True))
+classW =  data_size/(2 * uq[1])
 
+classWdict = {clazz:weight for clazz, weight in zip(uq[0], classW)}
+model.class_weights = classWdict
+print(classWdict)
 adjM = graphs[0]
 X = graphs[1]
 Y = graphs[2]
 parts = graphs[3]
 X,Y = model.createTensors(X,Y)
-model.fit(X, Y, adjM, parts, 100)
+model.fit(X, Y, adjM, parts, 1000)
