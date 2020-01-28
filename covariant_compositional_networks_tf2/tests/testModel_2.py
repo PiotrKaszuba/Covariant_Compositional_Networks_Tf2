@@ -4,6 +4,8 @@ from functools import reduce
 from operator import mul
 from ordered_set import OrderedSet
 import numpy as np
+from sklearn.metrics import accuracy_score
+from graphColoring import randomNPGraph, checkIfGraphConnected
 
 
 channels_in = 2
@@ -31,41 +33,81 @@ def complete_graph(nodes):
     node_features = [tf.Variable(tf.reshape(tf.ones(helperVar, dtype=tf.float32), [channels_in] + [1] * k + feature_vector_shape ))] * nodes
     adjM = np.ones((nodes, nodes))
     parts = [OrderedSet([i]) for i in range(nodes)]
+    return [node_features, adjM, parts]
 
 def uncomplete_graph(nodes):
     node_features = [tf.Variable(tf.reshape(tf.ones(helperVar, dtype=tf.float32), [channels_in] + [1] * k + feature_vector_shape ))] * nodes
 
-    below_diag =
-    adjM = np.ones((nodes, nodes))
-    parts = [OrderedSet([i]) for i in range(nodes)]
+    while True:
+        adjM = randomNPGraph(nodes, 0.5, diagonal = True, undirected = True)
+        if checkIfGraphConnected(adjM) and not np.array_equal(adjM, np.ones(adjM.shape)):
+            break
 
-def gen_graphs(num, nodes, p):
+    parts = [OrderedSet([i]) for i in range(nodes)]
+    return [node_features, adjM, parts]
+
+def gen_graphs(num, nodes, p=.5):
     graphs = []
-    Ys = []
     for _ in range(num):
         if np.random.rand()>p:
-            return complete_graph(nodes), tf.constant([1.])
+            G, y = complete_graph(nodes), tf.constant([1.])
+            graphs.append(G + [y])
+
         else:
-            return uncomplete_graph(nodes), tf.constant([0.])
+            G, y = uncomplete_graph(nodes), tf.constant([0.])
+            graphs.append(G + [y])
+    return graphs
 
-full_graph = inp
-full_graph[1] =
-print(inp)
-result = model.predict(inp[0], inp[1], inp[2])
+def train_test_split(graphs, train_fraction=0.8):
+    split_idx = int(np.round(train_fraction*len(graphs), decimals=0))
+
+    g_train, g_test = graphs[:split_idx], graphs[split_idx:]
+
+    return g_train, g_test
+
+def data_preparation(n = 200, nodes = 4):
+    graphs = gen_graphs(n, nodes)
+
+    idxs = np.arange(len(graphs), dtype=np.int)
+
+    return train_test_split(graphs, train_fraction=0.8)
+
+#result = model.predict(inp[0], inp[1], inp[2])
 #resultSum = np.sum(result)
-y = tf.constant([2.0])
+#y = tf.constant([2.0])
 #print(y)
-print(result)
+#print(result)
 
-for i in range(100):
+def train_and_test(model, data, epochs=100):
+    g_train, g_test = data
 
-    model.fit(inp[0], y, inp[1], inp[2])
+    for epoch in range(epochs):
+        for i in range(g_train):
+            features, adjM, parts, y = g_train[i]
+            model.fit(features, y, adjM, parts)
 
-    result = model.predict(inp[0], inp[1], inp[2])
-    print(result)
+    predicted = []
+    target = []
+    for i in range(len(g_test)):
+        features, adjM, parts, y = g_train[i]
+        target.append(y)
+        predicted.append(model.predict(features, adjM, parts))
+
+    print("Accuracy of the model is {}".format(accuracy_score(y_test, predicted)))
+
+if __name__=='__main__':
+    train_and_test(model, data_preparation())
+
+# for i in range(100):
+#
+#     #model.fit(inp[0], y, inp[1], inp[2])
+#     for i in range(len(y)):
+#
+#         result = model.predict(inp[0], inp[1], inp[2])
+#         print(result)
 
 #list(reversed(inp[0]))
-inpSwap = [inp[0][1], inp[0][2], inp[0][0]]
-adjMOther = np.array([[1, 1, 1], [1, 1, 1], [1,1,1]])
-result = model.predict(inp[0], adjMOther, inp[2])
-print(result)
+# inpSwap = [inp[0][1], inp[0][2], inp[0][0]]
+# adjMOther = np.array([[1, 1, 1], [1, 1, 1], [1,1,1]])
+# result = model.predict(inp[0], adjMOther, inp[2])
+# print(result)
