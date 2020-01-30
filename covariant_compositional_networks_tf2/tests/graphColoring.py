@@ -69,7 +69,6 @@ def generateGraphColoring(size, n_range, m_range, p_range):
             break
     return graphs
 
-
 # n = 7  # nodes
 # m = 4  # colors
 # p = 0.4  # edge probability
